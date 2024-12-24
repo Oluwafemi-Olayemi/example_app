@@ -1,0 +1,34 @@
+version: '3'
+
+services:
+    #php service
+    example_app:
+        build:
+            args:
+                user: example_app_user
+                uid: 1000
+            context: ./
+            dockerfile: Dockerfile
+        image: example_app_image
+        container_name: example_app
+        restart: unless-stopped
+        working_dir: /var/www
+        volumes:
+            - ./:/var/www
+            - ./docker-compose/nginx/:/etc/nginx/conf.d
+        networks:
+            - example_app_network
+    #nginx service
+    example_webserver:
+        image: nginx:alpine
+        container_name: example_webserver_container
+        restart: unless-stopped
+        ports:
+        - "80:80"
+        networks:
+        - example_app_network
+
+    networks:
+       example_app_network:
+          name: my_project_example_app_network
+          driver: bridge
