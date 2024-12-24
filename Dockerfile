@@ -1,24 +1,31 @@
-FROM php:8.4-fpm 
+FROM php:8.4-fpm
 
 ARG user
 ARG uid
 
+# Install dependencies
 RUN apt-get update && apt-get install -y \
-    git \
-    curl \
     libpng-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
     libonig-dev \
     libxml2-dev \
     zip \
-    unzip
+    unzip \
+    git \
+    curl \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
-#Clear cache(optional)
+#Clear cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
 #install composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Install project dependencies
+RUN composer install --no-dev --optimize-autoloader
 
 RUN useradd -u $uid -ms /bin/bash -g www-data $user
 
