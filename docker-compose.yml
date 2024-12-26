@@ -1,8 +1,8 @@
-version: '3'
-
 services:
     #php service
     example_app:
+        depends_on:
+            - example_mysql
         build:
             args:
                 user: example_app_user
@@ -24,11 +24,25 @@ services:
         container_name: example_webserver_container
         restart: unless-stopped
         ports:
-        - "80:80"
+            - "80:80"
+        volumes:
+            - ./:/var/www
+            - ./docker-compose/nginx/:/etc/nginx/conf.d
         networks:
         - example_app_network
-
-    networks:
-       example_app_network:
-          name: my_project_example_app_network
-          driver: bridge
+    #mysql service
+    example_mysql:
+        image: mysql:9.1.0
+        container_name: example_mysql_container
+        ports:
+            - "${DB_PORT}:${CONTAINER_DB_PORT}"
+        environment:
+            MYSQL_DATABASE: ${DB_DATABASE} # use laravel .env variable (.env can be found in the folder root directory)
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+            MYSQL_USER: ${DB_USERNAME}
+            MYSQL_PASSWORD: ${DB_PASSWORD}
+        networks:
+            - example_app_network
+networks:
+   example_app_network:
+      driver: bridge

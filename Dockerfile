@@ -21,17 +21,20 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
+COPY . /var/www
+
+COPY --chown=$user:www-data . /var/www
+
 #install composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Set working directory
+WORKDIR /var/www
 
 # Install project dependencies
 RUN composer install --no-dev --optimize-autoloader
 
 RUN useradd -u $uid -ms /bin/bash -g www-data $user
-
-COPY . /var/www
-
-COPY --chown=$user:www-data . /var/www
 
 USER $user
 
