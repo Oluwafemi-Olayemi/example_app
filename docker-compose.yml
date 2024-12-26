@@ -23,6 +23,8 @@ services:
         image: nginx:alpine
         container_name: example_webserver_container
         restart: unless-stopped
+        depends_on:
+            -   example_app
         ports:
             - "80:80"
         volumes:
@@ -41,8 +43,35 @@ services:
             MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
             MYSQL_USER: ${DB_USERNAME}
             MYSQL_PASSWORD: ${DB_PASSWORD}
+        volumes:
+            - example_mysql_data:/var/lib/mysql
         networks:
             - example_app_network
+    #phpmyadmin service
+    example_phpmyadmin:
+        image: phpmyadmin:latest
+        container_name: example_phpmyadmin_container
+        restart: unless-stopped
+        ports:
+            - "8383:80"
+        environment:
+            PMA_HOST: example_mysql
+            PMA_PORT: ${CONTAINER_DB_PORT}
+            PMA_USER: ${DB_USERNAME}
+            PMA_PASSWORD: ${DB_PASSWORD}
+        networks:
+            - example_app_network
+        depends_on:
+            -   example_mysql
+    #redis service
+    example_redis:
+        image: redis:7.2-alpine
+        container_name: example_redis_container
+        ports:
+            - "${REDIS_PORT}:${CONTAINER_REDIS_PORT}"
+volumes:
+    example_mysql_data:
+        driver: local
 networks:
    example_app_network:
       driver: bridge
