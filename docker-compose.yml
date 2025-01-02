@@ -10,6 +10,8 @@ services:
             context: ./
             dockerfile: Dockerfile
         image: example_app_image
+        ports:
+            - "9000:9000"  # Maps host port 9000 to container port 9000
         container_name: example_app
         restart: unless-stopped
         working_dir: /var/www
@@ -36,6 +38,7 @@ services:
     example_mysql:
         image: mysql:9.1.0
         container_name: example_mysql_container
+
         ports:
             - "${DB_PORT}:${CONTAINER_DB_PORT}"
         environment:
