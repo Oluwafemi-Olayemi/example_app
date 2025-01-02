@@ -31,8 +31,6 @@ seed:
 
 
 test:docker
-
-
 	docker exec -it $(APP_CONTAINER) php artisan test
 
 # Clear caches

@@ -1,0 +1,104 @@
+name: Laravel Dockerized Pipeline with EC2 Deployment
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  laravel-docker-pipeline:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: laravel
+          MYSQL_USER: user
+          MYSQL_PASSWORD: password
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      # Checkout the code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Log in to DockerHub
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Build the Docker Image
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest .
+
+      # Push the Docker Image
+      - name: Push Docker Image
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest
+
+      # Start Containers Locally for Testing
+      - name: Start Containers
+        run: |
+          docker-compose -f docker-compose.yml up -d
+
+      # Wait for MySQL to initialize
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            if docker exec $(docker ps -qf "name=mysql") mysqladmin ping -h "localhost" --silent; then
+              echo "MySQL is ready!";
+              break;
+            fi
+            echo "Waiting for MySQL to be ready...";
+            sleep 2;
+          done
+
+      # Run Laravel Migrations
+      - name: Run Laravel Migrations
+        run: |
+          docker exec $(docker ps -qf "name=app") php artisan migrate --force
+
+      # Run Tests
+      - name: Run Laravel Tests
+        run: |
+          docker exec $(docker ps -qf "name=app") php artisan test
+
+      # Deploy to EC2
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+            docker pull ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest
+            docker stop laravel-app || true
+            docker rm laravel-app || true
+            docker run -d --name laravel-app -p 80:8000 \
+              --env DB_CONNECTION=mysql \
+              --env DB_HOST=${{ secrets.DB_HOST }} \
+              --env DB_PORT=3306 \
+              --env DB_DATABASE=laravel \
+              --env DB_USERNAME=${{ secrets.DB_USERNAME }} \
+              --env DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest
+
+      # Tear Down Containers Locally
+      - name: Tear Down Containers
+        if: always()
+        run: |
+          docker-compose -f docker-compose.yml down
