@@ -14,7 +14,7 @@ jobs:
       mysql:
         image: mysql:8.0
         ports:
-          - 3306:3306
+          - 3306:3307
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: laravel
@@ -36,22 +36,65 @@ jobs:
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          password: ${{ secrets.DOCKER_PAT }}
 
       # Build the Docker Image
       - name: Build Docker Image
+        # uid and user below is from the php service from the docker-compose.yml file change appropriately
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest .
-
+          docker build --build-arg uid=1000 --build-arg user=example_app_user -t olayemi/example-app:latest .
       # Push the Docker Image
       - name: Push Docker Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest
+          docker push olayemi/example-app:latest
 
       # Start Containers Locally for Testing
-      - name: Start Containers
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Set Environment Variables
+        env:
+          APP_ENV: ${{ secrets.APP_ENV }}
+          APP_KEY: ${{ secrets.APP_KEY }}
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          CONTAINER_DB_PORT: ${{secrets.CONTAINER_DB_PORT }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          CONTAINER_REDIS_PORT: ${{ secrets.CONTAINER_REDIS_PORT }}
+
         run: |
-          docker-compose -f docker-compose.yml up -d
+          echo "Setting up environment variables"
+          echo "APP_ENV=${APP_ENV}" > .env
+          echo "APP_KEY=${APP_KEY}" >> .env
+          echo "DB_CONNECTION=${DB_CONNECTION}" >> .env
+          echo "DB_HOST=${DB_HOST}" >> .env
+          echo "DB_PORT=${DB_PORT}" >> .env
+          echo "DB_DATABASE=${DB_DATABASE}" >> .env
+          echo "DB_USERNAME=${DB_USERNAME}" >> .env
+          echo "DB_PASSWORD=${DB_PASSWORD}" >> .env
+          echo "CONTAINER_REDIS_PORT=${CONTAINER_REDIS_PORT}" >> .env
+          echo "REDIS_PORT=${REDIS_PORT}" >> .env
+          echo "CONTAINER_DB_PORT=${CONTAINER_DB_PORT}" >> .env
+
+      - name: Start Docker Compose (Plugin)
+        run: docker compose -f docker-compose.yml up -d
+        env:
+          APP_ENV: ${{ secrets.APP_ENV }}
+          APP_KEY: ${{ secrets.APP_KEY }}
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          CONTAINER_DB_PORT: ${{secrets.CONTAINER_DB_PORT}}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_PORT: ${{secrets.REDIS_PORT}}
+          CONTAINER_REDIS_PORT: ${{secrets.CONTAINER_REDIS_PORT}}
+
 
       # Wait for MySQL to initialize
       - name: Wait for MySQL
@@ -68,6 +111,8 @@ jobs:
       # Run Laravel Migrations
       - name: Run Laravel Migrations
         run: |
+          docker ps
+          docker exec $(docker ps -qf "name=app") chmod -R 775 /var/www/vendor
           docker exec $(docker ps -qf "name=app") php artisan migrate --force
 
       # Run Tests
@@ -85,10 +130,10 @@ jobs:
           port: 22
           script: |
             docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-            docker pull ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest
-            docker stop laravel-app || true
-            docker rm laravel-app || true
-            docker run -d --name laravel-app -p 80:8000 \
+            docker pull ${{ secrets.DOCKER_USERNAME }}/example-app:latest
+            docker stop example-app || true
+            docker rm example-app || true
+            docker run -d --name example-app -p 80:9000 \
               --env DB_CONNECTION=mysql \
               --env DB_HOST=${{ secrets.DB_HOST }} \
               --env DB_PORT=3306 \
@@ -96,9 +141,3 @@ jobs:
               --env DB_USERNAME=${{ secrets.DB_USERNAME }} \
               --env DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
               ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest
-
-      # Tear Down Containers Locally
-      - name: Tear Down Containers
-        if: always()
-        run: |
-          docker-compose -f docker-compose.yml down

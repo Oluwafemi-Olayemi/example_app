@@ -28,8 +28,6 @@ seed:
 	docker exec -it $(APP_CONTAINER) php artisan db:seed
 
 # Run tests
-
-
 test:docker
 	docker exec -it $(APP_CONTAINER) php artisan test
 
