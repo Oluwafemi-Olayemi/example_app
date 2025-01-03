@@ -5,7 +5,7 @@ services:
             - example_mysql
         build:
             args:
-                user: example_app_user
+                user: appUser
                 uid: 1000
             context: ./
             dockerfile: Dockerfile

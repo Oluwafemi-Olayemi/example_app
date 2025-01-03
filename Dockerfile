@@ -25,6 +25,9 @@ COPY . /var/www
 
 COPY --chown=$user:www-data . /var/www
 
+RUN chmod -R u+rwX,g+rwX /var/www/storage && \
+    chmod -R u+rwX,g+rwX /var/www/bootstrap/cache
+
 #install composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

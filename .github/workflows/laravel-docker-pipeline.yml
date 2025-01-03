@@ -95,12 +95,15 @@ jobs:
           REDIS_PORT: ${{secrets.REDIS_PORT}}
           CONTAINER_REDIS_PORT: ${{secrets.CONTAINER_REDIS_PORT}}
 
+      # Mark /var/www as Safe Directory
+      - name: Mark /var/www as Safe Directory
+        run: |
+          docker exec $(docker ps -qf "name=example_app") git config --global --add safe.directory /var/www
 
-      # Wait for MySQL to initialize
       - name: Wait for MySQL
         run: |
           for i in {1..30}; do
-            if docker exec $(docker ps -qf "name=mysql") mysqladmin ping -h "localhost" --silent; then
+            if docker exec example_mysql_container mysqladmin ping -h "localhost" --silent; then
               echo "MySQL is ready!";
               break;
             fi
@@ -108,11 +111,15 @@ jobs:
             sleep 2;
           done
 
+        # Install Composer Dependencies
+      - name: Install Composer Dependencies
+        run: |
+          docker exec --user appUser $(docker ps -qf "name=example_app") composer install --no-dev --optimize-autoloader
+
+
       # Run Laravel Migrations
       - name: Run Laravel Migrations
         run: |
-          docker ps
-          docker exec $(docker ps -qf "name=app") chmod -R 775 /var/www/vendor
           docker exec $(docker ps -qf "name=app") php artisan migrate --force
 
       # Run Tests
@@ -141,4 +148,3 @@ jobs:
               --env DB_USERNAME=${{ secrets.DB_USERNAME }} \
               --env DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
               ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest
-
