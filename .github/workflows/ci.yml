@@ -8,23 +8,22 @@ on:
 
 jobs:
   laravel-docker-pipeline:
+
     runs-on: ubuntu-latest
 
-    services:
-      mysql:
-        image: mysql:8.0
-        ports:
-          - 3306:3307
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: laravel
-          MYSQL_USER: user
-          MYSQL_PASSWORD: password
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
+    env: # Define global environment variables
+      APP_ENV: ${{ secrets.APP_ENV }}
+      APP_KEY: ${{ secrets.APP_KEY }}
+      DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      CONTAINER_DB_PORT: ${{ secrets.CONTAINER_DB_PORT }}
+      DB_DATABASE: ${{ secrets.DB_DATABASE }}
+      DB_USERNAME: ${{ secrets.DB_USERNAME }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      REDIS_PORT: ${{ secrets.REDIS_PORT }}
+      CONTAINER_REDIS_PORT: ${{ secrets.CONTAINER_REDIS_PORT }}
+
 
     steps:
       # Checkout the code
@@ -52,48 +51,9 @@ jobs:
       - name: Set up Docker
         uses: docker/setup-buildx-action@v2
 
-      - name: Set Environment Variables
-        env:
-          APP_ENV: ${{ secrets.APP_ENV }}
-          APP_KEY: ${{ secrets.APP_KEY }}
-          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          CONTAINER_DB_PORT: ${{secrets.CONTAINER_DB_PORT }}
-          DB_DATABASE: ${{ secrets.DB_DATABASE }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          REDIS_PORT: ${{ secrets.REDIS_PORT }}
-          CONTAINER_REDIS_PORT: ${{ secrets.CONTAINER_REDIS_PORT }}
-
-        run: |
-          echo "Setting up environment variables"
-          echo "APP_ENV=${APP_ENV}" > .env
-          echo "APP_KEY=${APP_KEY}" >> .env
-          echo "DB_CONNECTION=${DB_CONNECTION}" >> .env
-          echo "DB_HOST=${DB_HOST}" >> .env
-          echo "DB_PORT=${DB_PORT}" >> .env
-          echo "DB_DATABASE=${DB_DATABASE}" >> .env
-          echo "DB_USERNAME=${DB_USERNAME}" >> .env
-          echo "DB_PASSWORD=${DB_PASSWORD}" >> .env
-          echo "CONTAINER_REDIS_PORT=${CONTAINER_REDIS_PORT}" >> .env
-          echo "REDIS_PORT=${REDIS_PORT}" >> .env
-          echo "CONTAINER_DB_PORT=${CONTAINER_DB_PORT}" >> .env
-
       - name: Start Docker Compose (Plugin)
         run: docker compose -f docker-compose.yml up -d
-        env:
-          APP_ENV: ${{ secrets.APP_ENV }}
-          APP_KEY: ${{ secrets.APP_KEY }}
-          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          CONTAINER_DB_PORT: ${{secrets.CONTAINER_DB_PORT}}
-          DB_DATABASE: ${{ secrets.DB_DATABASE }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          REDIS_PORT: ${{secrets.REDIS_PORT}}
-          CONTAINER_REDIS_PORT: ${{secrets.CONTAINER_REDIS_PORT}}
+
 
       # Mark /var/www as Safe Directory
       - name: Mark /var/www as Safe Directory
@@ -114,18 +74,21 @@ jobs:
         # Install Composer Dependencies
       - name: Install Composer Dependencies
         run: |
-          docker exec --user appUser $(docker ps -qf "name=example_app") composer install --no-dev --optimize-autoloader
+          docker exec --user 1001 $(docker ps -qf "name=example_app") composer install --no-dev --optimize-autoloader
 
 
       # Run Laravel Migrations
       - name: Run Laravel Migrations
         run: |
-          docker exec $(docker ps -qf "name=app") php artisan migrate --force
+          chmod -R 775 storage/logs
+          docker exec --user 1001 $(docker ps -qf "name=example_app") env
+          docker exec --user 1001 $(docker ps -qf "name=example_app") chmod -R u+rwX,g+rwX /var/www/storage
+          docker exec --user 1001 $(docker ps -qf "name=example_app") php artisan migrate --force
 
       # Run Tests
       - name: Run Laravel Tests
         run: |
-          docker exec $(docker ps -qf "name=app") php artisan test
+          docker exec $(docker ps -qf "name=example_app") php artisan test
 
       # Deploy to EC2
       - name: Deploy to EC2
@@ -147,4 +110,4 @@ jobs:
               --env DB_DATABASE=laravel \
               --env DB_USERNAME=${{ secrets.DB_USERNAME }} \
               --env DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              ${{ secrets.DOCKER_USERNAME }}/laravel-app:latest
+              ${{ secrets.DOCKER_USERNAME }}/example-app:latest
