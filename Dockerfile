@@ -3,6 +3,13 @@ FROM php:8.4-fpm
 ARG user
 ARG uid
 
+# Debug to ensure ARG values are set
+RUN echo "UID: $uid, USER: $user"
+
+# Create user and group
+RUN getent group www-data || groupadd -g $uid www-data && \
+    useradd -u $uid -ms /bin/bash -g www-data $user
+
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     libpng-dev \
@@ -14,33 +21,31 @@ RUN apt-get update && apt-get install -y \
     unzip \
     git \
     curl \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-#Clear cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
-
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
-
-COPY . /var/www
-
+# Copy project files and set permissions
 COPY --chown=$user:www-data . /var/www
+RUN chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
-RUN chmod -R u+rwX,g+rwX /var/www/storage && \
-    chmod -R u+rwX,g+rwX /var/www/bootstrap/cache
-
-#install composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# Install Composer
+COPY --from=composer:2.5 /usr/bin/composer /usr/bin/composer
 
 # Set working directory
 WORKDIR /var/www
 
-# Install project dependencies
+# Install Laravel dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-RUN useradd -u $uid -ms /bin/bash -g www-data $user
+# Optimize Laravel
+RUN php artisan config:cache && \
+    php artisan route:cache && \
+    php artisan view:cache
 
 USER $user
 
-EXPOSE 9000
+# Add health check
+HEALTHCHECK CMD curl --fail http://localhost:9000 || exit 1
 
+EXPOSE 9000
 CMD ["php-fpm"]

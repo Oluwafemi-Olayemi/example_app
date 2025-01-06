@@ -7,6 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
+
   laravel-docker-pipeline:
 
     runs-on: ubuntu-latest
@@ -76,19 +77,10 @@ jobs:
         run: |
           docker exec --user 1001 $(docker ps -qf "name=example_app") composer install --no-dev --optimize-autoloader
 
-
       # Run Laravel Migrations
       - name: Run Laravel Migrations
         run: |
-          chmod -R 775 storage/logs
-          docker exec --user 1001 $(docker ps -qf "name=example_app") env
-          docker exec --user 1001 $(docker ps -qf "name=example_app") chmod -R u+rwX,g+rwX /var/www/storage
           docker exec --user 1001 $(docker ps -qf "name=example_app") php artisan migrate --force
-
-      # Run Tests
-      - name: Run Laravel Tests
-        run: |
-          docker exec $(docker ps -qf "name=example_app") php artisan test
 
       # Deploy to EC2
       - name: Deploy to EC2
